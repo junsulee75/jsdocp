@@ -1,3 +1,16 @@
+This repository is forked from GIT Playbook of Thomas and Kai.
+And it's for posting my personal technical documents that I think it's worth to be shared to external readers.    
+
+Here is the document link of this repository.     
+All opinions in the documents are my own.     
+
+https://junsulee75.github.io/jsdocp/#/notes/
+
+For IBMers, there is also another document repository link having internal stuffs.    
+
+https://pages.github.ibm.com/junsulee/jsdoci/#/notes
+
+
 
 ## GIT Playbook
 
