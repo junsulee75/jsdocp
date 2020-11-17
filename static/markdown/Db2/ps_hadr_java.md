@@ -1201,6 +1201,7 @@ Time:hostname => |2020-11-16 23:13:32.514869|shps011.fyre.ibm.com| , ServerList 
 ...
 ```
 
+
 CONCLUSION
 ====
 * To cover all above scenarios including initial connection rerouting, it's recommended to use use WLB.   

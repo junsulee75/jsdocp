@@ -2,6 +2,7 @@
 Objectives
 ====
 
+
 You configured DB2 pureScale on server side and now, may wonder how to handle connection rerouting in failure scenarios like below.   
 
 - A member down on pureScale primary cluster.  
