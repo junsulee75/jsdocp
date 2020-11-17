@@ -153,7 +153,7 @@ Option -hadr requires -db <database> or -alldbs option and active database.
 TEST SCENARIOS
 ====
 
-Here are two main test scenarios depending on the client reroute mode on the primary cluster being configured with `WLB` or `affinity`.    
+Here are two main test streams depending on the jcc properties combinations under WLB.   
 
 01 WLB ( Workload balancing) 
 ---
@@ -231,7 +231,7 @@ Database 1 entry:
 --------
 Firstly, let's forget about HADR at the moment and just see how WLB works within a pureScale cluster.      
 Keep in mind that WLB configuration itself enables client reroute within a pureScale cluster and connection will be made to a member depending on server list that has server workload information and priority.    
-The server list informatin will be sent from DB2 server to client JVM(Java virtual machine) ever some seconds and that is cached within the java process to be referred for connection attempts.   
+The server list informatin will be sent from DB2 server to client JVM(Java virtual machine) every some seconds and that is cached within the java process to be referred for distributing transactions based on the workload.   
 
 Here, I used a simple standalone java to connect to the database and run the SQL showing the current connected server hostname continuosly as well as server list information as the reference.        
 Necessary jcc properties are implemented in the program.    
@@ -415,7 +415,7 @@ $ db2stop mebmer 1 force
 ```
 ![Preprocessing](static/img/java_pshadr/java_pshadr_03_member1_down.png) 
 
-Terminal 1 : Then it only connects to remained member 0 showing the dead member 1 priority in server list as zero(0) which means connection will not goes to the member 1.  
+Terminal 1 : Then it only connects to remained member 0 showing the dead member 1 priority in server list as zero(0) which means connection will not go to the member 1.  
 ```
 ...
 Time:hostname => |2020-11-03 18:02:59.412545|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|67| 
@@ -463,7 +463,7 @@ Time:hostname => |2020-11-03 18:04:21.923957|jsps1.fyre.ibm.com| , ServerList (h
 ```
 
 
-01-1 CLIENT REROUTE across HADR clusters when using WLB    
+01-1 CLIENT REROUTE across HADR clusters using WLB and "alternateGroupServerName" property   
 -------
 
 So far, with regard to down situation on any member, we observed connection reroute works perfectly within the primary pureScale cluster with just only one jcc property `enableSysplexWLB=true` enabling WLB.     
@@ -513,7 +513,8 @@ With this, the scenarios within primary pureScale cluster will work as same as w
 
 so we continue test from HADR takeover scenario.
 
-
+01-1-1 TEST #1 HADR TAKEOVER
+---
 Terminal 2 : While connection attempts continue with the test java program,  run `takeover hadr' from the replay standby host.       
 
 ```
@@ -637,6 +638,8 @@ Database Member 1 -- Database HADRDB -- Active -- Up 0 days 00:02:27 -- Date 202
             
 ```
 
+01-2-2 TEST #2 Client reroute within new primary HADR cluster  
+----
 Terminal 2 : Stop member 0
 ```
 db2inst1@shps011:/home/db2inst1 $ db2stop member 0 force
@@ -731,6 +734,9 @@ Time:hostname => |2020-11-06 14:54:58.154757|shps012.fyre.ibm.com| , ServerList 
 Time:hostname => |2020-11-06 14:54:59.161054|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|82|shps011.fyre.ibm.com|100| 
 ...
 ```
+
+01-2-3 TEST #3  HADR TAKOVER BACK TO ORIGINAL HADR PRIMARY CLUSTER
+----
 
 Terminal 2 : Run `takeover hadr' back from the current replay standby host.  
 
@@ -857,9 +863,9 @@ Database Member 0 -- Database HADRDB -- Standby -- Up 0 days 00:01:57 -- Date 20
              ...
 ```
 
-01-2 CLIENT REROUTE across HADR clusters using WLB when creating new connection.    
-------
-So far, we have seen the combinatino of WLB and the `alternateGroup` prefix properties covers all the situation sceanrios in pureScale HADR environment for existing connection reroute.     
+01-2-4 TEST #4 Initial connection reroute
+--
+So far, we have seen the combinatino of WLB then the `alternateGroup` prefix properties covers all the situation sceanrios in pureScale HADR environment for existing connection reroute.     
 Then what if there is situation for new incoming connection scenarios such as Web Application server(WAS) restart.    
 
 For the test, we will takeover HADR in advance and start the java test program to see if the initial connection can be made to the current primary pureScale cluster.  
@@ -886,36 +892,321 @@ Time:hostname => |2020-11-06 15:23:29.681492|shps012.fyre.ibm.com| , ServerList 
 ...
 ```
 
-NOTE 
+01-2 CLIENT REROUTE across HADR clusters using WLB and "clientRerouteAlternateServerName" property   
 ---
 
-There is old document with the same topic, however, part of the contents are incorrect.   
-https://www.ibm.com/developerworks/data/library/techarticle/dm-1509hadr-purescale/index.html
+There is other possible combination using WLB and "clientRerouteAlternateServerName" property to achieve the same scenarios that was described in the previous section 01-1 CLIENT REROUTE across HADR clusters using WLB and "alternateGroupServerName" property.     
 
-For example, the document suggests to use WLB with `clientRerouteAlternateServerName` parameter. 
+However, there are few additional things to be configured further and considered.    
+This section will describe the necessary things and show what happens if those are in present.    
 
+Firstly of all, let's just change the jcc properties to use like below from the exisitng test java program that had been used in the previous section.    
+All others are same in the program.     
+
+Here, the following propperties are used.    
+
+```
+enableSysplexWLB=true
+clientRerouteAlternateServerName=shps011.fyre.ibm.com
+clientRerouteAlternatePortNumber=50000
+maxRetriesForClientReroute=4
+retryIntervalForClientReroute=3
+```
+
+Revised line of the java test program. 
 ```java
 ...
  // pureScale HADR : WLB + clientRerouteAlternateServerName
                 String URL = "jdbc:db2://jsps1.fyre.ibm.com:50000/hadrdb:enableSysplexWLB=true;clientRerouteAlternateServerName=shps011.fyre.ibm.com;clientRerouteAlternatePortNumber=50000;maxRetriesForClientReroute=4;retryIntervalForClientReroute=3;";
 ```
 
-But the test shows it fails to route to new primary cluster after `HADR takeover`.    
-We have discussed with one of author of the technote and agreed that the suggeestion is wrong.    
-```
-...
-Time:hostname => |2020-11-06 15:32:50.194944|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|54|jsps2.fyre.ibm.com|100| 
-Time:hostname => |2020-11-06 15:32:51.21627|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|54|jsps2.fyre.ibm.com|100| 
+01-2-1 TEST #1 Change the jcc configuration  
+--
+The test shows it fails to route to new primary cluster after `HADR takeover` with just configuring jcc properties.       
 
+Compile the revised java program and run.
+```
+db2inst1@lamps1 ~/test/java_hadr $ javac TestWLB.java
+db2inst1@lamps1 ~/test/java_hadr $ java -cp ./db2jcc4.jar:. TestWLB
+```
+
+HADR TAKEOVER
+```
+db2inst1@shps011:/home/db2inst1 $ date;db2 takeover hadr on db hadrdb;date
+Mon Nov 16 22:06:38 PST 2020
+DB20000I  The TAKEOVER HADR ON DATABASE command completed successfully.
+Mon Nov 16 22:06:59 PST 2020
+```
+
+
+
+During HADR takeover, -4499 error occurs in the application side failing to reroute.  
+```
+..
+Time:hostname => |2020-11-16 22:06:36.762496|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|78| 
+Time:hostname => |2020-11-16 22:06:37.796291|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|89| 
+Time:hostname => |2020-11-16 22:06:38.813185|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|89| 
 com.ibm.db2.jcc.am.DisconnectNonTransientConnectionException: [jcc][t4][2030][11211][4.26.14] A communication error occurred during operations on the connection's underlying socket, socket input stream, 
 or socket output stream.  Error location: Reply.fill() - insufficient data (-1).  Message: Insufficient data. ERRORCODE=-4499, SQLSTATE=08001
+	at com.ibm.db2.jcc.am.b7.a(b7.java:338)
+	at com.ibm.db2.jcc.t4.a.a(a.java:572)
+	at com.ibm.db2.jcc.t4.a.a(a.java:556)
+	at com.ibm.db2.jcc.t4.a.a(a.java:551)
+	at com.ibm.db2.jcc.t4.y.b(y.java:310)
+	at com.ibm.db2.jcc.t4.y.c(y.java:337)
+	at com.ibm.db2.jcc.t4.y.c(y.java:450)
+	at com.ibm.db2.jcc.t4.y.v(y.java:1219)
+	at com.ibm.db2.jcc.t4.ab.h(ab.java:169)
+	at com.ibm.db2.jcc.t4.p.g(p.java:93)
+	at com.ibm.db2.jcc.t4.b.readSetClientInfo_(b.java:3152)
+	at com.ibm.db2.jcc.am.ei.b(ei.java:73)
+	at com.ibm.db2.jcc.am.en.b(en.java:196)
+	at com.ibm.db2.jcc.am.Agent.readPiggybackCommands(Agent.java:648)
+	at com.ibm.db2.jcc.am.Agent.beginReadChain(Agent.java:394)
+	at com.ibm.db2.jcc.t4.a.beginReadChain(a.java:818)
+	at com.ibm.db2.jcc.am.Agent.flow(Agent.java:267)
+	at com.ibm.db2.jcc.am.k4.a(k4.java:3306)
+	at com.ibm.db2.jcc.am.k4.a(k4.java:737)
+	at com.ibm.db2.jcc.t4.k.a(k.java:157)
+	at com.ibm.db2.jcc.am.k4.executeQuery(k4.java:716)
+	at TestWLB.JDBCTest(TestWLB.java:72)
+	at TestWLB.main(TestWLB.java:11)
+If you see this message, it means it passed the loops. So that is strange and not expected 
+```
+
+01-2-2 TEST #2 Configure alternate server   
+--
+
+In these configurations combination, we will need to configure alternate server on DB2 server side like below.    
+
+```
+db2inst1@jsps1:/home/db2inst1 $ db2 update alternate server for database HADRDB using hostname shps011.fyre.ibm.com port 50000
+DB20000I  The UPDATE ALTERNATE SERVER FOR DATABASE command completed 
+successfully.
+DB21056W  Directory changes may not be effective until the directory cache is 
+refreshed.
+
+db2inst1@jsps1:/home/db2inst1 $ db2 list db directory
+
+ System Database Directory
+
+ Number of entries in the directory = 2
+
+Database 1 entry:
+
+ Database alias                       = HADRDB
+ Database name                        = HADRDB
+ Local database directory             = /db2sd_20200603021640/db2inst1/dbpath
+ Database release level               = 15.00
+ Comment                              =
+ Directory entry type                 = Indirect
+ Catalog database partition number    = 0
+ Alternate server hostname            = shps011.fyre.ibm.com
+ Alternate server port number         = 50000
+
+db2inst1@shps011:/home/db2inst1 $ db2 update alternate server for database HADRDB using hostname jsps1.fyre.ibm.com port 50000
+DB20000I  The UPDATE ALTERNATE SERVER FOR DATABASE command completed 
+successfully.
+DB21056W  Directory changes may not be effective until the directory cache is 
+
+db2inst1@shps011:/home/db2inst1 $ db2 list db directory
+
+ System Database Directory
+
+ Number of entries in the directory = 2
+
+Database 1 entry:
+
+ Database alias                       = HADRDB
+ Database name                        = HADRDB
+ Local database directory             = /db2sd_20200905013958/db2inst1
+ Database release level               = 15.00
+ Comment                              =
+ Directory entry type                 = Indirect
+ Catalog database partition number    = 0
+ Alternate server hostname            = jsps1.fyre.ibm.com
+ Alternate server port number         = 50000
+
+```
+
+Then, testing again, the connection reroute still fails.   
+
+Starting the test program.   
+```
+db2inst1@lamps1 ~/test/java_hadr $ java -cp ./db2jcc4.jar:. TestWLB
+```
+
+HADR TAKEOVER
+```
+db2inst1@shps011:/home/db2inst1 $ date;db2 takeover hadr on db hadrdb;date                                                    
+Mon Nov 16 22:22:42 PST 2020
+DB20000I  The TAKEOVER HADR ON DATABASE command completed successfully.
+Mon Nov 16 22:22:55 PST 2020
+```
+
+During HADR takeover, -4499 error occurs in the application side failing to reroute. 
+```
+Time:hostname => |2020-11-16 22:22:41.027634|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:22:42.115372|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|100| 
+com.ibm.db2.jcc.am.DisconnectNonTransientConnectionException: [jcc][t4][2030][11211][4.26.14] A communication error occurred during operations on the connection's underlying socket, socket input stream, 
+or socket output stream.  Error location: Reply.fill() - insufficient data (-1).  Message: Insufficient data. ERRORCODE=-4499, SQLSTATE=08001
+	at com.ibm.db2.jcc.am.b7.a(b7.java:338)
+	at com.ibm.db2.jcc.t4.a.a(a.java:572)
+	at com.ibm.db2.jcc.t4.a.a(a.java:556)
+	at com.ibm.db2.jcc.t4.a.a(a.java:551)
+	at com.ibm.db2.jcc.t4.y.b(y.java:310)
+	at com.ibm.db2.jcc.t4.y.c(y.java:337)
+	at com.ibm.db2.jcc.t4.y.c(y.java:450)
+	at com.ibm.db2.jcc.t4.y.v(y.java:1219)
+	at com.ibm.db2.jcc.t4.ab.h(ab.java:169)
+	at com.ibm.db2.jcc.t4.p.g(p.java:93)
+	at com.ibm.db2.jcc.t4.b.readSetClientInfo_(b.java:3152)
+	at com.ibm.db2.jcc.am.ei.b(ei.java:73)
+	at com.ibm.db2.jcc.am.en.b(en.java:196)
+	at com.ibm.db2.jcc.am.Agent.readPiggybackCommands(Agent.java:648)
+	at com.ibm.db2.jcc.am.Agent.beginReadChain(Agent.java:394)
+	at com.ibm.db2.jcc.t4.a.beginReadChain(a.java:818)
+	at com.ibm.db2.jcc.am.Agent.flow(Agent.java:267)
+	at com.ibm.db2.jcc.am.k4.a(k4.java:3306)
+	at com.ibm.db2.jcc.am.k4.a(k4.java:737)
+	at com.ibm.db2.jcc.t4.k.a(k.java:157)
+	at com.ibm.db2.jcc.am.k4.executeQuery(k4.java:716)
+	at TestWLB.JDBCTest(TestWLB.java:72)
+	at TestWLB.main(TestWLB.java:11)
+If you see this message, it means it passed the loops. So that is strange and not expected 
+db2inst1@lamps1 ~/test/java_hadr $ date
+Mon Nov 16 22:22:54 PST 2020
+```
+
+01-2-3 TEST #3 Adjust maxRetriesForClientReroute and retryIntervalForClientReroute=6 
+--
+In this combination, retry count and interval may need to be adjusted depending on environments.    
+Here, we will resume the test with adjusting the following parameters.   
+
+```
+maxRetriesForClientReroute=6
+retryIntervalForClientReroute=6
+```
+
+
+```java
+...
+                // pureScale HADR : WLB + clientRerouteAlternateServerName, Longer retry
+                String URL = "jdbc:db2://jsps1.fyre.ibm.com:50000/hadrdb:enableSysplexWLB=true;clientRerouteAlternateServerName=shps011.fyre.ibm.com;clientRerouteAlternatePortNumber=50000;maxRetriesForClientReroute=6;retryIntervalForClientReroute=6;";
+```
+
+Compile the revised java program and run.
+```
+db2inst1@lamps1 ~/test/java_hadr $ javac TestWLB.java
+db2inst1@lamps1 ~/test/java_hadr $ java -cp ./db2jcc4.jar:. TestWLB
+```
+
+HADR TAKEOVER
+```
+db2inst1@shps011:/home/db2inst1 $ date;db2 takeover hadr on db hadrdb;date
+Mon Nov 16 22:29:44 PST 2020
+DB20000I  The TAKEOVER HADR ON DATABASE command completed successfully.
+Mon Nov 16 22:30:04 PST 2020
+```
+
+With HADR takeover, the connection is routed to new primary cluster successfully.    
+```
+...
+Time:hostname => |2020-11-16 22:29:38.681969|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|78| 
+Time:hostname => |2020-11-16 22:29:39.748011|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|82| 
+Time:hostname => |2020-11-16 22:29:40.777406|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|82| 
+Time:hostname => |2020-11-16 22:29:41.791551|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|82| 
+Time:hostname => |2020-11-16 22:29:42.804872|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|89| 
+Time:hostname => |2020-11-16 22:29:43.820869|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|82| 
+
+Time:hostname => |2020-11-16 22:30:20.153805|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:21.269956|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:22.281253|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:23.291153|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:24.302572|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:25.312284|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|52| 
+Time:hostname => |2020-11-16 22:30:39.015036|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|52| 
+Time:hostname => |2020-11-16 22:30:40.025468|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|52| 
+Time:hostname => |2020-11-16 22:30:41.036183|shps012.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:51.709274|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:52.720163|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|100| 
+Time:hostname => |2020-11-16 22:30:44.066251|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|52| 
+```
+
+HADR TAKEOVER BACK TO ORIGINAL PRIMARY CLUSTER
+```
+db2inst1@jsps1:/home/db2inst1 $ date;db2 takeover hadr on db hadrdb;date
+Mon Nov 16 22:36:37 PST 2020
+DB20000I  The TAKEOVER HADR ON DATABASE command completed successfully.
+Mon Nov 16 22:36:55 PST 2020
+```
+
+Connection reroute works successfully for taking HADR back to original primary clsuter.
+```
+...
+Time:hostname => |2020-11-16 22:36:34.455963|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|65| 
+Time:hostname => |2020-11-16 22:36:35.472488|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|65| 
+Time:hostname => |2020-11-16 22:36:36.480927|shps011.fyre.ibm.com| , ServerList (host:priority) => shps011.fyre.ibm.com|100|shps012.fyre.ibm.com|65| 
+
+Time:hostname => |2020-11-16 22:36:27.824826|shps012.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:36:57.369858|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|58| 
+Time:hostname => |2020-11-16 22:37:12.576386|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:37:13.639431|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:37:14.655589|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:37:15.67413|jsps1.fyre.ibm.com| , ServerList (host:priority) => jsps1.fyre.ibm.com|100|jsps2.fyre.ibm.com|87| 
+Time:hostname => |2020-11-16 22:37:16.801375|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|58| 
+Time:hostname => |2020-11-16 22:37:17.823066|jsps2.fyre.ibm.com| , ServerList (host:priority) => jsps2.fyre.ibm.com|100|jsps1.fyre.ibm.com|58| 
+...
+
+```
+
+01-2-4 #TEST 4 Initial connetion reroute
+---
+
+Initial connections are routed to the new primary cluster successfully.   
+
+HADR TAKEOVER
+```
+db2inst1@shps011:/home/db2inst1 $ date;db2 takeover hadr on db hadrdb;date
+Mon Nov 16 22:38:19 PST 2020
+DB20000I  The TAKEOVER HADR ON DATABASE command completed successfully.
+Mon Nov 16 22:38:33 PST 2020
+
+db2inst1@shps011:/home/db2inst1 $ ssh shps012
+Last login: Mon Nov 16 22:33:23 2020 from 172.16.230.93
+
+db2inst1@shps012:/home/db2inst1 $ db2 start hadr on db hadrdb as primary
+DB20000I  The START HADR ON DATABASE command completed successfully.
+db2inst1@shps012:/home/db2inst1 $ date
+Mon Nov 16 22:39:55 PST 2020
+
+```
+
+Run test java program     
+```
+db2inst1@lamps1 ~/test/java_hadr $ date;java -cp ./db2jcc4.jar:. TestWLB
+Mon Nov 16 23:13:23 PST 2020
+============= Test starts !! 
+=====before connect !
+=====Initial Connection successful !
+Time:hostname => |2020-11-16 23:13:24.34442|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:15.753627|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:26.444338|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:27.452478|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:28.461223|shps012.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:29.473417|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:30.483752|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:31.496591|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54| 
+Time:hostname => |2020-11-16 23:13:32.514869|shps011.fyre.ibm.com| , ServerList (host:priority) => shps012.fyre.ibm.com|100|shps011.fyre.ibm.com|54|
 ...
 ```
 
 CONCLUSION
 ====
-To cover all above scenarios including initial connection rerouting, use WLB and `alternateGroup` prefix properties combination.   
-That is only possible way to satisfy all the general outage scenario and rerouting accordingly in pureScale HADR environment.
+* To cover all above scenarios including initial connection rerouting, it's recommended to use use WLB.   
+* And using `alternateGroup` prefix properties will cover most necessary scenarios.   
+* `clientRerouteAlternateServerName` property can also be used with WLB but it will need additional alternate server configuraiton on DB2 server side and retry interval may need to be adjusted to make it work.
+
 
 
 
