@@ -1,0 +1,50 @@
+{
+  "appName": "Jun Su's Technical Romance Notes (External) ",
+  "headerNavigation": [
+    {
+      "name": "notes",
+      "path": "/notes"
+    }
+  ],
+  "landingPage": "/notes",
+  "topics": [
+  	"news"
+  ],
+  "pages": [
+    {
+      "route": "/notes",
+      "name": "notes",
+      "description": "This is the playbook",
+      "icon": "address-book",
+      "children": [
+
+        {
+          "route": "/Db2",
+          "name": "Db2",
+          "description": "Db2 related",
+          "icon": "project-diagram",
+          "topics": ["Db2"],
+          "children": [
+            {
+              "route": "/ps_hadr_non_java",
+              "name": "Non java application connection reroute with pureScale HADR environment",
+              "description": "Non java client application configuration examples for rerouting connections against Db2 pureScale HADR environment.",
+              "icon": "project-diagram",
+              "topics": ["Db2","pureScale","hadr"],
+              "markdown" : "/static/markdown/Db2/ps_hadr_non_java.md"
+            },
+            {
+              "route": "/ps_hadr_java",
+              "name": "Java application connection reroute with pureScale HADR environment",
+              "description": "Java client application configuration examples for rerouting connections against Db2 pureScale HADR environment.",
+              "icon": "project-diagram",
+              "topics": ["Db2","pureScale","hadr"],
+              "markdown" : "/static/markdown/Db2/ps_hadr_java.md"
+            }
+          ]
+        }
+
+      ]      
+    }
+  ]
+}
